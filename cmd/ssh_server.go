@@ -53,29 +53,70 @@ func sshServer(port int) error {
 // }
 
 func defaultHandler(s ssh.Session) {
-	printPrompt(s)
+	// printPrompt(s)
+	command := s.RawCommand()
+
+	fmt.Fprint(s, "\n")
+	if command == EXIT_CMD {
+		s.Exit(0)
+	}
+
+	if command != "" {
+		// One-shot command mode
+		result, code := output([]byte(command))
+		fmt.Fprintf(s, "%s\n", result)
+		s.Exit(code)
+	}
+
+	s.Write([]byte("Welcome to SSH shell. Type 'exit' to quit.\n\n"))
+	// reader := bufio.NewReader(s)
+	// for {
+	// 	printPrompt(s)
+	// 	line, err := reader.ReadString('\n')
+	// 	if err == io.EOF {
+	// 		break
+	// 	} else if err != nil {
+	// 		s.Stderr().Write([]byte("Error reading input.\n"))
+	// 		break
+	// 	}
+
+	// 	input := strings.TrimSpace(line)
+	// 	if input == "" {
+	// 		continue
+	// 	}
+
+	// 	if input == EXIT_CMD {
+	// 		s.Write([]byte("Goodbye!\n"))
+	// 		break
+	// 	}
+
+	// 	result, _ := output([]byte(input))
+	// 	fmt.Fprintf(s, "%s\n", result)
+	// }
+	// s.Exit(0)
 	scanner := bufio.NewScanner(s)
 	scanner.Split(bufio.ScanBytes)
-	command := []byte{}
-
+	cmd := []byte{}
+	printPrompt(s)
 	for scanner.Scan() {
 		if scanner.Text() == string('\n') || scanner.Text() == string('\r') {
 			fmt.Fprint(s, "\n")
-			if string(command) == EXIT_CMD {
+			if string(cmd) == EXIT_CMD {
 				s.Exit(0)
 			}
-			result, code := output(command)
+			result, _ := output(cmd)
 			fmt.Fprintf(s, "%s\n", result)
-			s.Exit(code)
-			// printPrompt(s)
-			// command = []byte{}
+			// s.Exit(code)
+			printPrompt(s)
+			cmd = []byte{}
 		} else {
 			fmt.Fprint(s, scanner.Text())
-			command = append(command, scanner.Bytes()...)
+			cmd = append(cmd, scanner.Bytes()...)
 		}
 	}
 	if err := scanner.Err(); err != nil {
 		fmt.Fprintln(os.Stderr, "reading standard input:", err)
+		s.Exit(0)
 	}
 }
 
